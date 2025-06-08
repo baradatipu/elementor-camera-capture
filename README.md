@@ -5,7 +5,8 @@ Elementor Webcam Capture - Custom camera widget to capture photos with geolocati
 This widget allows users to capture a photo via their device camera, auto-embed geolocation info (latitude, longitude, address, time, accuracy), and upload it into an Elementor form file upload field.
 
 ---
-
+## **✨📖 [How Hide Elementor Upload Field Guide](https://github.com/baradatipu/elementor-file-upload-input-field-hide/) ✨**
+---
 ## ✅ Features
 
 - Camera capture (mobile & desktop)
