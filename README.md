@@ -20,8 +20,8 @@ This widget allows users to capture a photo via their device camera, auto-embed 
 ## 🧩 Requirements
 
 - WordPress site
-- [WPCode Plugin](https://wordpress.org/plugins/insert-headers-and-footers/) (for injecting code)
-- Elementor with a Form widget
+- [WP Coder – Code Snippets + HTML, CSS, JS and PHP Injection Plugin](https://wordpress.org/plugins/wp-coder/) (for injecting code)
+- Elementor Pro Plugin
 
 ---
 
@@ -29,9 +29,9 @@ This widget allows users to capture a photo via their device camera, auto-embed 
 
 ### 1. Add HTML + JS Using WPCode Plugin
 
-1. Go to: `WP Admin > WPCode > Code Snippets > Add New`
-2. Choose: **Custom Snippet > HTML Snippet**
-3. Paste the full HTML + JS code from `camera-widget.html`
+1. Go to: `WP Admin > WP Coder >  Add New > Select HTML Tab`
+2. Write Title of Code Snippet above
+3. Paste the full HTML + JS code from `elementor-webcam-capture.html`
 4. Save and **Activate**
 5. Copy the generated shortcode (example: `[wpcode id="123"]`)
 
