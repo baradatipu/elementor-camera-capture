@@ -1,0 +1,204 @@
+<!-- Elementor Camera Widget -->
+<div class="custom-camera-field" style="margin: 20px auto; max-width: 400px; text-align: center;">
+  <label style="display: block; font-weight: bold; margin-bottom: 10px;">Capture Photo with Location</label>
+  <button type="button" id="cameraBtn" style="padding: 10px 20px; background: #007cba; color: white; border: none; border-radius: 4px; cursor: pointer;">📷 Start Camera</button>
+  <video id="cameraVideo" style="display: none; width: 100%; margin-top: 10px; border-radius: 6px;" playsinline></video>
+  <img id="previewImage" style="display: none; width: 100%; margin-top: 10px; border-radius: 6px;" />
+  <div id="photoControls" style="margin-top: 10px; display: none;">
+    <button type="button" id="retakeBtn" style="padding: 8px 16px; background: #999; color: white; border: none; border-radius: 4px; cursor: pointer;">🔁 Retake</button>
+    <button type="button" id="useBtn" style="padding: 8px 16px; background: green; color: white; border: none; border-radius: 4px; cursor: pointer;">✅ Use Photo</button>
+  </div>
+  <div id="photoStatus" style="margin-top: 10px; display: none;"></div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  // Define all HTML elements
+  const cameraBtn = document.getElementById('cameraBtn');
+  const video = document.getElementById('cameraVideo');
+  const previewImage = document.getElementById('previewImage');
+  const retakeBtn = document.getElementById('retakeBtn');
+  const useBtn = document.getElementById('useBtn');
+  const photoStatus = document.getElementById('photoStatus');
+  const photoControls = document.getElementById('photoControls');
+
+  let canvas = document.createElement('canvas');
+  let stream = null;
+  let currentLocation = null;
+  let capturedBlob = null;
+  let capturedLoc = null;
+  let capturedAddress = null;
+
+  // Get browser geolocation
+  function getCurrentLocation() {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) return reject('Geolocation not supported');
+      navigator.geolocation.getCurrentPosition(
+        pos => resolve({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+          timestamp: new Date().toISOString()
+        }),
+        err => reject(err),
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    });
+  }
+
+  // Fetch human-readable address from OpenCage API
+  async function getAddress(lat, lon) {
+    const key = 'YOUR_OPENCAGE_API_KEY'; // Replace this with your OpenCage API key
+    const url = `https://api.opencagedata.com/geocode/v1/json?q=${lat}+${lon}&key=${key}`;
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+      return data.results?.[0]?.formatted || null;
+    } catch {
+      return null;
+    }
+  }
+
+  // Format timestamp to readable string
+  function formatDateTime(isoString) {
+    const date = new Date(isoString);
+    const day = date.getDate();
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const suffix = (d) => {
+      if (d > 3 && d < 21) return "th";
+      switch (d % 10) {
+        case 1: return "st";
+        case 2: return "nd";
+        case 3: return "rd";
+        default: return "th";
+      }
+    };
+    const hours = date.getHours();
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const hr = hours % 12 || 12;
+    return `${day}${suffix(day)} ${monthNames[date.getMonth()]} ${date.getFullYear()}, ${hr}:${minutes} ${ampm}`;
+  }
+
+  // Add location and timestamp text over photo
+  function addGeoTagToImage(canvas, loc, address) {
+    const ctx = canvas.getContext('2d');
+    const footerHeight = 100;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(0, canvas.height - footerHeight, canvas.width, footerHeight);
+    ctx.fillStyle = 'white';
+    ctx.font = '16px Arial';
+    let y = canvas.height - footerHeight + 20;
+    if (address) ctx.fillText(`📍 ${address}`, 10, y), y += 20;
+    ctx.fillText(`🌐 ${loc.latitude.toFixed(6)}, ${loc.longitude.toFixed(6)}`, 10, y); y += 20;
+    ctx.fillText(`🕒 ${formatDateTime(loc.timestamp)}`, 10, y); y += 20;
+    ctx.fillText(`📏 Accuracy: ±${Math.round(loc.accuracy)}m`, 10, y);
+  }
+
+  // Upload image to Elementor file field
+  function uploadToElementorField(blob, loc, address) {
+    const fileInput = document.querySelector('#form-field-field_a51b627'); // 🔁 Update this ID to match your form field ID
+    if (!fileInput) {
+      photoStatus.innerHTML = '❌ File input not found!';
+      photoStatus.style.color = 'red';
+      photoStatus.style.display = 'block';
+      return;
+    }
+
+    const file = new File([blob], 'photo_with_location.jpg', { type: 'image/jpeg' });
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    fileInput.files = dt.files;
+    fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+
+    // Add optional hidden input for location info
+    let hidden = document.querySelector('input[name="geo_info"]');
+    if (!hidden) {
+      hidden = document.createElement('input');
+      hidden.type = 'hidden';
+      hidden.name = 'geo_info';
+      document.querySelector('form').appendChild(hidden);
+    }
+    hidden.value = `Address: ${address}, Coordinates: ${loc.latitude.toFixed(6)},${loc.longitude.toFixed(6)}, Time: ${formatDateTime(loc.timestamp)}`;
+
+    photoStatus.innerHTML = '✅ Photo uploaded successfully!';
+    photoStatus.style.color = 'green';
+    photoStatus.style.display = 'block';
+  }
+
+  // Main camera button click
+  cameraBtn.addEventListener('click', async () => {
+    if (!stream) {
+      cameraBtn.textContent = 'Getting Location...';
+      try {
+        currentLocation = await getCurrentLocation();
+      } catch {
+        currentLocation = null;
+      }
+      cameraBtn.textContent = 'Starting Camera...';
+
+      try {
+        try {
+          // Try rear camera first
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { exact: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+          });
+        } catch {
+          // Fallback to default camera
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 1920 }, height: { ideal: 1080 } }
+          });
+        }
+
+        video.srcObject = stream;
+        await video.play();
+        video.style.display = 'block';
+        cameraBtn.textContent = '📸 Take Photo';
+      } catch {
+        photoStatus.innerHTML = '❌ Camera permission denied!';
+        photoStatus.style.color = 'red';
+        photoStatus.style.display = 'block';
+        cameraBtn.textContent = '📷 Start Camera';
+        return;
+      }
+    } else {
+      // Capture image
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0);
+      if (currentLocation) {
+        const addr = await getAddress(currentLocation.latitude, currentLocation.longitude);
+        addGeoTagToImage(canvas, currentLocation, addr);
+        capturedLoc = currentLocation;
+        capturedAddress = addr;
+      }
+      capturedBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 1.0));
+      previewImage.src = URL.createObjectURL(capturedBlob);
+      previewImage.style.display = 'block';
+      video.style.display = 'none';
+      photoControls.style.display = 'flex';
+      cameraBtn.style.display = 'none';
+    }
+  });
+
+  retakeBtn.addEventListener('click', () => {
+    previewImage.style.display = 'none';
+    cameraBtn.style.display = 'inline-block';
+    photoControls.style.display = 'none';
+    video.style.display = 'block';
+    photoStatus.style.display = 'none';
+  });
+
+  useBtn.addEventListener('click', () => {
+    uploadToElementorField(capturedBlob, capturedLoc, capturedAddress);
+    stream.getTracks().forEach(track => track.stop());
+    video.style.display = 'none';
+    photoControls.style.display = 'none';
+    cameraBtn.textContent = '📷 Capture Another Photo';
+    cameraBtn.style.display = 'inline-block';
+    stream = null;
+  });
+});
+</script>
