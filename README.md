@@ -6,6 +6,7 @@ This widget allows users to capture a photo via their device camera, auto-embed 
 
 ---
 ## **✨📖 [How Hide Elementor Upload Field Guide](https://github.com/baradatipu/elementor-file-upload-input-field-hide/) ✨**
+## **✨📖 [How add multiple webcapture in single page and form](https://github.com/baradatipu/elementor-webcam-capture-widget-generator/) ✨**
 ---
 ## ✅ Features
 
